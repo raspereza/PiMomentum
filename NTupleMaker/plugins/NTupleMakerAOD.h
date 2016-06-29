@@ -32,7 +32,6 @@
 #include "DataFormats/HLTReco/interface/TriggerEvent.h"
 #include "FWCore/Common/interface/TriggerNames.h"
 
-
 #include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerReadoutRecord.h"
 //#include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerObjectMapRecord.h"
 #include "CondFormats/L1TObjects/interface/L1GtPrescaleFactors.h"
@@ -154,8 +153,9 @@ using namespace reco;
 #define M_mvametmaxcount 2000
 #define M_genparticlesmaxcount 1000
 #define M_trigobjectmaxcount 1000
-#define M_pzeromaxcount 1000
+#define M_pizeromaxcount 1000
 #define M_v0maxcount 1000
+#define M_svmaxcount 1000
 typedef ROOT::Math::PositionVector3D<ROOT::Math::Cartesian3D<double>,ROOT::Math::DefaultCoordinateSystemTag> Point3D;
 typedef ROOT::Math::LorentzVector<ROOT::Math::PxPyPzE4D<double> > LorentzVector;
 typedef ROOT::Math::SMatrix<double, 2, 2, ROOT::Math::MatRepSym<double, 2> > CovMatrix2D;
@@ -184,7 +184,8 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   unsigned int AddTracks(const edm::Event& iEvent, const edm::EventSetup& iSetup);
   unsigned int AddGammas(const edm::Event& iEvent, const edm::EventSetup& iSetup);
   unsigned int AddV0s(const edm::Event& iEvent, const edm::EventSetup& iSetup, bool isKshort);
-  //  unsigned int AddPiZeros(const edm::Event& iEvent, const edm::EventSetup& iSetup);
+  unsigned int AddPiZeros(const edm::Event& iEvent, const edm::EventSetup& iSetup);
+  unsigned int AddSVs(const edm::Event& iEvent, const edm::EventSetup& iSetup);
   Int_t HasAnyMother(const GenParticle* particle, int id);
   math::XYZPoint PositionOnECalSurface(reco::TransientTrack&);
 
@@ -206,24 +207,10 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   bool crecprimvertex;
   bool crectrack;
   bool crecphoton;
-  bool crectau;
   bool crecpizero;
+  bool crecsv;
   bool crecpfjet;
   bool crecv0;
-
-  double cMuPtMin;
-  double cMuEtaMax;
-  int cMuNum;
-
-  // electrons
-  double cElPtMin;
-  double cElEtaMax;
-  int cElNum;
-
-  // taus
-  double cTauPtMin;
-  double cTauEtaMax;
-  int cTauNum;
 
   // tracks
   double cTrackPtMin;
@@ -252,9 +239,9 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   // Collections
   edm::EDGetTokenT<reco::VertexCompositeCandidateCollection> KshortCollectionToken_;
   edm::EDGetTokenT<reco::VertexCompositeCandidateCollection> LambdaCollectionToken_;
-  edm::EDGetTokenT<reco::PFTauCollection> TauCollectionToken_;
   edm::EDGetTokenT<reco::PFCandidateCollection> PFCandidateCollectionToken_;
   edm::EDGetTokenT<reco::RecoTauPiZeroCollection> TauPiZeroCollectionToken_;
+  edm::EDGetTokenT<VertexCollection> SVToken_;
   edm::EDGetTokenT<reco::PFJetCollection> JetCollectionToken_;
   edm::EDGetTokenT<reco::GenParticleCollection> GenParticleCollectionToken_;
   edm::EDGetTokenT<BeamSpot> BeamSpotToken_;
@@ -307,8 +294,7 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   Int_t   primvertex_ntracks;
   Float_t primvertex_cov[6];
 
-  // tracks
-  //tracks                                                                                                                                  
+  //tracks
   UInt_t track_count;
   Float_t track_px[M_trackmaxcount];
   Float_t track_py[M_trackmaxcount];
@@ -396,7 +382,7 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   Float_t dimuon_dist3D[M_muonmaxcount*(M_muonmaxcount - 1)/2];
   Float_t dimuon_dist3DE[M_muonmaxcount*(M_muonmaxcount - 1)/2];
 
-  // pat jets 
+  // reco jets 
   UInt_t pfjet_count;
   Float_t pfjet_e[M_jetmaxcount];
   Float_t pfjet_px[M_jetmaxcount];
@@ -437,7 +423,7 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   Float_t pfjet_btag[M_jetmaxcount][10];
   Float_t pfjet_jecUncertainty[M_jetmaxcount];
 
-  // pat electrons 
+  // gsf electrons 
   UInt_t electron_count;
   Float_t electron_px[M_electronmaxcount];
   Float_t electron_py[M_electronmaxcount];
@@ -535,6 +521,7 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   Float_t photon_py[M_photonmaxcount];
   Float_t photon_pz[M_photonmaxcount];
   Float_t photon_pt[M_photonmaxcount];
+  Float_t photon_e[M_photonmaxcount];
   Float_t photon_eta[M_photonmaxcount];
   Float_t photon_phi[M_photonmaxcount];
   Float_t photon_e1x5[M_photonmaxcount];
@@ -563,76 +550,22 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   UChar_t photon_info[M_photonmaxcount];
   UInt_t photon_gapinfo[M_photonmaxcount];
   UInt_t photon_conversionbegin[M_photonmaxcount];
-
-  // taus  
-  UInt_t tau_count;
-  Float_t tau_e[M_taumaxcount];
-  Float_t tau_px[M_taumaxcount];
-  Float_t tau_py[M_taumaxcount];
-  Float_t tau_pz[M_taumaxcount];
-  Float_t tau_pt[M_taumaxcount];
-  Float_t tau_eta[M_taumaxcount];
-  Float_t tau_phi[M_taumaxcount];
-  Float_t tau_mass[M_taumaxcount];
-
-  Float_t tau_leadchargedhadrcand_px[M_taumaxcount];
-  Float_t tau_leadchargedhadrcand_py[M_taumaxcount];
-  Float_t tau_leadchargedhadrcand_pz[M_taumaxcount];
-  Float_t tau_leadchargedhadrcand_mass[M_taumaxcount];
-  Int_t   tau_leadchargedhadrcand_id[M_taumaxcount];
-  Float_t tau_leadchargedhadrcand_dxy[M_taumaxcount];
-  Float_t tau_leadchargedhadrcand_dz[M_taumaxcount];
-
-
-  Float_t tau_vertexx[M_taumaxcount];
-  Float_t tau_vertexy[M_taumaxcount];
-  Float_t tau_vertexz[M_taumaxcount];
-
-  Float_t tau_dxy[M_taumaxcount];
-  Float_t tau_dz[M_taumaxcount];
-  Float_t tau_ip3d[M_taumaxcount];
-  Float_t tau_ip3dSig[M_taumaxcount];
-  Float_t tau_charge[M_taumaxcount];
-  Float_t tau_genjet_e[M_taumaxcount];
-  Float_t tau_genjet_px[M_taumaxcount];
-  Float_t tau_genjet_py[M_taumaxcount];
-  Float_t tau_genjet_pz[M_taumaxcount];
-  Int_t tau_genmatch[M_taumaxcount];
-
-  // main tau discriminators
-  bool setTauBranches;
-  std::vector<std::pair<std::string, unsigned int> >tauIdIndx;
-  Float_t tau_ids[100][M_taumaxcount];
-  
-  // number of tracks around 
-  UInt_t tau_ntracks_pt05[M_taumaxcount];
-  UInt_t tau_ntracks_pt08[M_taumaxcount];
-  UInt_t tau_ntracks_pt1[M_taumaxcount];
-  
-  // l1 match
-  Bool_t  tau_L1trigger_match[M_taumaxcount]; 
-
-  UInt_t tau_signalChargedHadrCands_size[M_taumaxcount];
-  UInt_t tau_signalNeutralHadrCands_size[M_taumaxcount];
-  UInt_t tau_signalGammaCands_size[M_taumaxcount];
-  UInt_t tau_isolationChargedHadrCands_size[M_taumaxcount];
-  UInt_t tau_isolationNeutralHadrCands_size[M_taumaxcount];
-  UInt_t tau_isolationGammaCands_size[M_taumaxcount];
-
-  string tau_genDecayMode_name[M_taumaxcount];
-  Int_t tau_genDecayMode[M_taumaxcount];
-
-  string tau_decayMode_name[M_taumaxcount];
-  Int_t tau_decayMode[M_taumaxcount];
+  Float_t photon_superClusterX[M_photonmaxcount];
+  Float_t photon_superClusterY[M_photonmaxcount];
+  Float_t photon_superClusterZ[M_photonmaxcount];
 
   // PiZeros
   UInt_t pizero_count;
-  Float_t pizero_px[M_pzeromaxcount];
-  Float_t pizero_py[M_pzeromaxcount];
-  Float_t pizero_pz[M_pzeromaxcount];
-  Float_t pizero_pt[M_pzeromaxcount];
-  Float_t pizero_eta[M_pzeromaxcount];
-  Float_t pizero_phi[M_pzeromaxcount];
+  Float_t pizero_px[M_pizeromaxcount];
+  Float_t pizero_py[M_pizeromaxcount];
+  Float_t pizero_pz[M_pizeromaxcount];
+  Float_t pizero_pt[M_pizeromaxcount];
+  Float_t pizero_eta[M_pizeromaxcount];
+  Float_t pizero_phi[M_pizeromaxcount];
+  Float_t pizero_e[M_pizeromaxcount];
+  Float_t pizero_x[M_pizeromaxcount];
+  Float_t pizero_y[M_pizeromaxcount];
+  Float_t pizero_z[M_pizeromaxcount];
 
   // V0s
   UInt_t v0_count;
@@ -660,9 +593,6 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   Float_t v0_pos_eta[M_v0maxcount];
   Float_t v0_pos_phi[M_v0maxcount];
   Float_t v0_pos_mass[M_v0maxcount];
-  Float_t v0_pos_vx[M_v0maxcount];
-  Float_t v0_pos_vy[M_v0maxcount];
-  Float_t v0_pos_vz[M_v0maxcount];
   Int_t   v0_pos_ID[M_v0maxcount]; 
 
   Float_t v0_neg_px[M_v0maxcount];
@@ -672,10 +602,30 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
   Float_t v0_neg_eta[M_v0maxcount];
   Float_t v0_neg_phi[M_v0maxcount];
   Float_t v0_neg_mass[M_v0maxcount];
-  Float_t v0_neg_vx[M_v0maxcount];
-  Float_t v0_neg_vy[M_v0maxcount];
-  Float_t v0_neg_vz[M_v0maxcount];
   Int_t   v0_neg_ID[M_v0maxcount]; 
+
+  // Secondary vertices
+  UInt_t sv_count;
+  Float_t sv_covxx[M_svmaxcount];
+  Float_t sv_covxy[M_svmaxcount];
+  Float_t sv_covxz[M_svmaxcount];
+  Float_t sv_covyy[M_svmaxcount];
+  Float_t sv_covyz[M_svmaxcount];
+  Float_t sv_covzz[M_svmaxcount];
+  Float_t sv_vx[M_svmaxcount];
+  Float_t sv_vy[M_svmaxcount];
+  Float_t sv_vz[M_svmaxcount];
+  UInt_t sv_ntracks[M_svmaxcount];
+  Bool_t sv_exceedTrkSize[M_svmaxcount];
+  Float_t sv_chi2[M_svmaxcount];
+  Float_t sv_ndof[M_svmaxcount];
+  Float_t sv_track_px[M_svmaxcount][20];
+  Float_t sv_track_py[M_svmaxcount][20];
+  Float_t sv_track_pz[M_svmaxcount][20];
+  Float_t sv_track_pt[M_svmaxcount][20];
+  Float_t sv_track_eta[M_svmaxcount][20];
+  Float_t sv_track_phi[M_svmaxcount][20];
+  Float_t sv_track_charge[M_svmaxcount][20];
 
   // generated tau
   UInt_t gentau_count;
@@ -831,6 +781,8 @@ class NTupleMakerAOD : public edm::EDAnalyzer{
 
   Float_t genmet_ex;
   Float_t genmet_ey;
+
+
 
   //Generator Information
   Float_t genweight;
